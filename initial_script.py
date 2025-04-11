@@ -15,6 +15,10 @@ import seaborn as sns
 import tiktoken
 from sklearn.model_selection import train_test_split
 #from tqdm.auto import tqdm
+#from typing import Optional
+#name: Optional[str] = None
+from __future__ import annotations
+
 
 LLM_SERVER = "http://localhost:11434"
 MODEL = "gemma3:1b"
@@ -83,14 +87,70 @@ def show_doc_and_summary(doc: str, summary: str, max_len_to_print: int=500) -> s
     """Show a little bit of doc and its summary"""
     
     return (
-        f"Document ({max_len_to_print:,} of {len(doc):,} characters):\n"
+    
+       f"Document ({max_len_to_print:,} of {len(doc):,} characters):\n"
         f"{fill(doc[:max_len_to_print], replace_whitespace=False)}...\n\n"
         f"Summary ({len(summary):,} characters):\n"
         f"{fill(summary)}"
     )
     
-doc, summary = doc_and_summary_from_row(doc_row)    
-
+doc, summary = doc_and_summary_from_row(doc_row)
 print(show_doc_and_summary(doc, summary))
 
 # let's make our prompt..
+prompt_template = 'Here is a terrific one-sentence summary of "{doc}": '
+prompt = prompt_template.format(doc=doc)
+
+
+def show_prompt(prompt: str, start_chars: int = 60, end_chars: int = 30) -> str:
+    """Nicely format a prompt"""
+    return f"Our prompt ({len(prompt):,} characters):\n{prompt[:start_chars]} ... {prompt[-end_chars:]}"
+
+
+print(show_prompt(prompt))
+
+# lets see if our LLM is running
+requests.get(LLM_SERVER + "/api/version").json()
+# no error returned so looking good!
+
+# Let's call Ollama completion API...
+
+def get_llm_completion(
+    prompt: str, max_tokens: int | None = None, top_k: int | None = None) -> str:
+    """Hit an API endpoint to get an LLM completion"""
+    data = {
+        "model": MODEL,
+        "prompt": prompt,
+        "seed": 0,
+        "max_tokens": max_tokens,
+        "top_k": top_k,
+    }
+    resp = requests.post(LLM_SERVER + "/v1/completions", json=data)
+    return resp.json()["choices"][0]["text"]
+
+completion = get_llm_completion(prompt)
+print(prompt_template + "\n\n" + fill(completion, replace_whitespace=False)[:1000])
+
+# How many tokens is the size of our prompt? Ollama has a limit of 2048 tokens
+
+def count_tokens(text: str) -> int:
+    """Count the number of tokens in a string"""
+    enc = tiktoken.encoding_for_model("gpt-4o")
+    return len(enc.encode(text))
+
+print(f"Our prompt is {count_tokens(prompt):,} tokens.")
+# which is a lot larger than 2048 tokens!
+
+# Make the prompt itself shorter by simply only selecting the 'front' part of it hoping 
+# doesn't lose too much...
+
+shorter_prompt = prompt_template.format(doc=doc[:7500])
+print(f"Our shorter prompt is {count_tokens(shorter_prompt):,} tokens long.")
+print(show_prompt(shorter_prompt))
+
+# let's try the summary of this shorter prompt
+completion = get_llm_completion(shorter_prompt)
+print(fill(completion, replace_whitespace=False)[:1000])
+
+# Need to next address the fact our model is 'instruction-tuned' as still don't have a sensible output
+
