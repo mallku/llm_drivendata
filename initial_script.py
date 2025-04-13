@@ -154,3 +154,54 @@ print(fill(completion, replace_whitespace=False)[:1000])
 
 # Need to next address the fact our model is 'instruction-tuned' as still don't have a sensible output
 
+from openai import OpenAI
+
+llm_client = OpenAI(base_url=LLM_SERVER + "/v1", api_key="my-fake-free-api-key!")
+
+chat_completion = llm_client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "What's your name, age, and favorite ice cream flavor?",
+        }
+    ],
+    model=MODEL,
+    seed=0,
+)
+
+print(fill(chat_completion.choices[0].message.content, replace_whitespace=False))
+
+# wrap our call to the api in a function
+
+def ask_llm(prompt: str, max_tokens: int = 500):
+    """Get a response from an LLM using the OpenAI client"""
+    chat_completion = llm_client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        model=MODEL,
+        seed=0,
+        max_tokens=max_tokens,
+    )
+    return chat_completion.choices[0].message.content, chat_completion
+
+# make the call
+prompt_template = (
+    "Can you please write a terrific one-sentence summary of this document:\n\n{doc}"
+)
+
+resp, completion = ask_llm(prompt_template.format(doc=doc[:10_000]))
+
+# check the token usage
+print(
+    f"Prompt tokens     : {completion.usage.prompt_tokens:,}\nCompletion tokens : {completion.usage.completion_tokens:,}"
+)
+
+# let's look at our little summary
+print(fill(resp, replace_whitespace=False))
+
+#%% Prediction
+
